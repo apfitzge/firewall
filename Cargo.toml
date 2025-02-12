@@ -10,6 +10,7 @@ aya-build = { version = "0.1.2", default-features = false }
 aya-ebpf = { version = "0.1.1", default-features = false }
 aya-log = { version = "0.2.1", default-features = false }
 aya-log-ebpf = { version = "0.1.1", default-features = false }
+network-types = { version = "0.0.7" }
 which = { version = "6.0.0", default-features = false }
 
 [profile.release.package.firewall-ebpf]
