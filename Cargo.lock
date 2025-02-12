@@ -421,10 +421,15 @@ dependencies = [
  "aya-log",
  "clap",
  "env_logger",
+ "firewall-common",
  "firewall-ebpf",
  "log",
  "tokio",
 ]
+
+[[package]]
+name = "firewall-common"
+version = "0.1.0"
 
 [[package]]
 name = "firewall-ebpf"
@@ -432,6 +437,7 @@ version = "0.1.0"
 dependencies = [
  "aya-ebpf",
  "aya-log-ebpf",
+ "firewall-common",
  "network-types",
  "which",
 ]
