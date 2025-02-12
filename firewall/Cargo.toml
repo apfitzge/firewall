@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+anyhow = { workspace = true }
+aya = { workspace = true }
+aya-log = { workspace = true }
+
 
 [build-dependencies]
 anyhow = { workspace = true }
