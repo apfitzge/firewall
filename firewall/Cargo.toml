@@ -8,6 +8,11 @@ anyhow = { workspace = true }
 aya = { workspace = true }
 aya-log = { workspace = true }
 
+[dev-dependencies]
+clap = { workspace = true}
+env_logger = { workspace = true }
+log = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
 
 [build-dependencies]
 anyhow = { workspace = true }

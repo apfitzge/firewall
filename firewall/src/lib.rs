@@ -4,7 +4,6 @@ use {
         programs::{Xdp, XdpFlags},
         Ebpf,
     },
-    aya_log::EbpfLogger,
     std::net::Ipv4Addr,
 };
 
@@ -53,8 +52,6 @@ fn attach_firewall_program(
     interface: &str,
     flags: XdpFlags,
 ) -> Result<(), anyhow::Error> {
-    EbpfLogger::init(bpf)?;
-
     let program: &mut Xdp = bpf.program_mut("firewall").unwrap().try_into()?;
     program.load()?;
     program.attach(interface, flags)?;
