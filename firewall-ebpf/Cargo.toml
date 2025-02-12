@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 aya-ebpf = { workspace = true }
 aya-log-ebpf = { workspace = true }
+network-types = { workspace = true }
 
 [build-dependencies]
 which = { workspace = true }
