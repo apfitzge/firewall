@@ -1,0 +1,11 @@
+[package]
+name = "firewall"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+
+[build-dependencies]
+anyhow = { workspace = true }
+aya-build = { workspace = true }
+firewall-ebpf = { path = "../firewall-ebpf" }
