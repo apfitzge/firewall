@@ -1,10 +1,38 @@
 use {
     aya::{
+        maps::{HashMap, MapData},
         programs::{Xdp, XdpFlags},
         Ebpf,
     },
     aya_log::EbpfLogger,
+    std::net::Ipv4Addr,
 };
+
+pub struct Firewall<'a> {
+    map: HashMap<&'a mut MapData, u32, u32>,
+}
+
+impl<'a> Firewall<'a> {
+    pub fn try_new(bpf: &'a mut Ebpf) -> Result<Self, anyhow::Error> {
+        let Some(map) = bpf.map_mut("BLOCKLIST") else {
+            return Err(anyhow::Error::msg("BLOCKLIST map not found"));
+        };
+        let map = HashMap::try_from(map)?;
+        Ok(Self { map })
+    }
+
+    pub fn block_ip(&mut self, ip: Ipv4Addr) -> Result<(), anyhow::Error> {
+        let block_addr = u32::from(ip);
+        self.map.insert(&block_addr, 0, 0)?;
+        Ok(())
+    }
+
+    pub fn unblock_up(&mut self, ip: Ipv4Addr) -> Result<(), anyhow::Error> {
+        let block_addr = u32::from(ip);
+        self.map.remove(&block_addr)?;
+        Ok(())
+    }
+}
 
 pub fn setup_default(interface: &str, flags: XdpFlags) -> Result<Ebpf, anyhow::Error> {
     let mut bpf = load_default_firewall()?;
