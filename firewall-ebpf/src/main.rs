@@ -59,7 +59,7 @@ fn try_firewall(ctx: XdpContext) -> Result<u32, ()> {
 
     let ipv4hdr: *const Ipv4Hdr = checked_get_pointer(&mut offset, end)?;
     let source_addr = u32::from_be(unsafe { read_field!(ipv4hdr: Ipv4Hdr, src_addr: u32) });
-
+    let mut port = 0;
     let action = match unsafe {
         BLOCKLIST
             .get(&source_addr)
@@ -74,6 +74,7 @@ fn try_firewall(ctx: XdpContext) -> Result<u32, ()> {
                 IpProto::Tcp => {
                     let tcphdr: *const TcpHdr = checked_get_pointer(&mut offset, end)?;
                     let source_port = unsafe { read_field!(tcphdr: TcpHdr, source: u16) };
+                    port = source_port;
                     if source_port == blocked_port {
                         xdp_action::XDP_DROP
                     } else {
@@ -83,6 +84,7 @@ fn try_firewall(ctx: XdpContext) -> Result<u32, ()> {
                 IpProto::Udp => {
                     let udphdr: *const UdpHdr = checked_get_pointer(&mut offset, end)?;
                     let source_port = unsafe { read_field!(udphdr: UdpHdr, source: u16) };
+                    port = source_port;
                     if source_port == blocked_port {
                         xdp_action::XDP_DROP
                     } else {
@@ -97,7 +99,7 @@ fn try_firewall(ctx: XdpContext) -> Result<u32, ()> {
 
     info!(
         &ctx,
-        "received a packet from {:i}. Action: {}", source_addr, action
+        "received a packet from {:i}:{}. Action: {}", source_addr, port, action
     );
 
     Ok(action)

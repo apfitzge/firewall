@@ -7,7 +7,7 @@ use {
     log::info,
     std::{
         io::Write,
-        net::{IpAddr, Ipv4Addr, SocketAddr},
+        net::{IpAddr, SocketAddr},
         str::FromStr,
     },
 };
