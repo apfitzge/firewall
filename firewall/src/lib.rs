@@ -4,6 +4,7 @@ use {
         programs::{Xdp, XdpFlags},
         Ebpf,
     },
+    firewall_common::IpBlockRule,
     std::net::Ipv4Addr,
 };
 
@@ -20,9 +21,10 @@ impl<'a> Firewall<'a> {
         Ok(Self { map })
     }
 
-    pub fn block_ip(&mut self, ip: Ipv4Addr) -> Result<(), anyhow::Error> {
+    pub fn block_ip(&mut self, ip: Ipv4Addr, rule: IpBlockRule) -> Result<(), anyhow::Error> {
         let block_addr = u32::from(ip);
-        self.map.insert(&block_addr, 0, 0)?;
+        let rule = u32::from(rule);
+        self.map.insert(block_addr, rule, 0)?;
         Ok(())
     }
 

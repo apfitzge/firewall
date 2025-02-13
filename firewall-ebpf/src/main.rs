@@ -9,9 +9,12 @@ use {
         programs::XdpContext,
     },
     aya_log_ebpf::info,
+    firewall_common::IpBlockRule,
     network_types::{
         eth::{EthHdr, EtherType},
-        ip::Ipv4Hdr,
+        ip::{IpProto, Ipv4Hdr},
+        tcp::TcpHdr,
+        udp::UdpHdr,
     },
 };
 
@@ -24,11 +27,6 @@ macro_rules! read_field {
 
 #[map]
 static BLOCKLIST: HashMap<u32, u32> = HashMap::<u32, u32>::with_max_entries(2048, 0);
-
-#[inline(always)]
-fn is_ip_blocked(address: u32) -> bool {
-    unsafe { BLOCKLIST.get(&address) }.is_some()
-}
 
 #[xdp]
 pub fn firewall(ctx: XdpContext) -> u32 {
@@ -62,10 +60,39 @@ fn try_firewall(ctx: XdpContext) -> Result<u32, ()> {
     let ipv4hdr: *const Ipv4Hdr = checked_get_pointer(&mut offset, end)?;
     let source_addr = u32::from_be(unsafe { read_field!(ipv4hdr: Ipv4Hdr, src_addr: u32) });
 
-    let action = if is_ip_blocked(source_addr) {
-        xdp_action::XDP_DROP
-    } else {
-        xdp_action::XDP_PASS
+    let action = match unsafe {
+        BLOCKLIST
+            .get(&source_addr)
+            .ok_or(())
+            .copied()
+            .and_then(IpBlockRule::try_from)
+    } {
+        Ok(IpBlockRule::AnyPort) => xdp_action::XDP_DROP,
+        Ok(IpBlockRule::Port(blocked_port)) => {
+            // Need to scan further in packet to get the source port.
+            match unsafe { read_field!(ipv4hdr: Ipv4Hdr, proto: IpProto) } {
+                IpProto::Tcp => {
+                    let tcphdr: *const TcpHdr = checked_get_pointer(&mut offset, end)?;
+                    let source_port = unsafe { read_field!(tcphdr: TcpHdr, source: u16) };
+                    if source_port == blocked_port {
+                        xdp_action::XDP_DROP
+                    } else {
+                        xdp_action::XDP_PASS
+                    }
+                }
+                IpProto::Udp => {
+                    let udphdr: *const UdpHdr = checked_get_pointer(&mut offset, end)?;
+                    let source_port = unsafe { read_field!(udphdr: UdpHdr, source: u16) };
+                    if source_port == blocked_port {
+                        xdp_action::XDP_DROP
+                    } else {
+                        xdp_action::XDP_PASS
+                    }
+                }
+                _ => xdp_action::XDP_PASS,
+            }
+        }
+        Err(_) => xdp_action::XDP_PASS,
     };
 
     info!(

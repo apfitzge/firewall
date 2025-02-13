@@ -39,6 +39,8 @@ pub async fn main() {
         };
 
         info!("blocking {ip}");
-        firewall.block_ip(ip).expect("failed to block ip");
+        firewall
+            .block_ip(ip, IpBlockRule::AnyPort)
+            .expect("failed to block ip");
     }
 }
