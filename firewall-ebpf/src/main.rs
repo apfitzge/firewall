@@ -8,7 +8,7 @@ use {
         maps::HashMap,
         programs::XdpContext,
     },
-    aya_log_ebpf::info,
+    aya_log_ebpf::trace,
     firewall_common::IpBlockRule,
     network_types::{
         eth::{EthHdr, EtherType},
@@ -57,50 +57,58 @@ fn try_firewall(ctx: XdpContext) -> Result<u32, ()> {
         _ => return Ok(xdp_action::XDP_PASS),
     }
 
+    // Get source address from IP header
     let ipv4hdr: *const Ipv4Hdr = checked_get_pointer(&mut offset, end)?;
     let source_addr = u32::from_be(unsafe { read_field!(ipv4hdr: Ipv4Hdr, src_addr: u32) });
-    let mut port = 0;
-    let action = match unsafe {
-        BLOCKLIST
-            .get(&source_addr)
-            .ok_or(())
-            .copied()
-            .and_then(IpBlockRule::try_from)
-    } {
-        Ok(IpBlockRule::AnyPort) => xdp_action::XDP_DROP,
-        Ok(IpBlockRule::Port(blocked_port)) => {
-            // Need to scan further in packet to get the source port.
-            match unsafe { read_field!(ipv4hdr: Ipv4Hdr, proto: IpProto) } {
-                IpProto::Tcp => {
-                    let tcphdr: *const TcpHdr = checked_get_pointer(&mut offset, end)?;
-                    let source_port = unsafe { read_field!(tcphdr: TcpHdr, source: u16) };
-                    port = source_port;
-                    if source_port == blocked_port {
-                        xdp_action::XDP_DROP
-                    } else {
-                        xdp_action::XDP_PASS
-                    }
-                }
-                IpProto::Udp => {
-                    let udphdr: *const UdpHdr = checked_get_pointer(&mut offset, end)?;
-                    let source_port = unsafe { read_field!(udphdr: UdpHdr, source: u16) };
-                    port = source_port;
-                    if source_port == blocked_port {
-                        xdp_action::XDP_DROP
-                    } else {
-                        xdp_action::XDP_PASS
-                    }
-                }
-                _ => xdp_action::XDP_PASS,
-            }
+
+    // Read protocol and get port for TCP/UDP.
+    let mut destination_port = 0;
+    let mut should_check = false;
+    match unsafe { read_field!(ipv4hdr: Ipv4Hdr, proto: IpProto) } {
+        IpProto::Tcp => {
+            let tcphdr: *const TcpHdr = checked_get_pointer(&mut offset, end)?;
+            destination_port = u16::from_be(unsafe { read_field!(tcphdr: TcpHdr, dest: u16) });
+            should_check = true;
         }
-        Err(_) => xdp_action::XDP_PASS,
+        IpProto::Udp => {
+            let udphdr: *const UdpHdr = checked_get_pointer(&mut offset, end)?;
+            destination_port = u16::from_be(unsafe { read_field!(udphdr: UdpHdr, dest: u16) });
+            should_check = true;
+        }
+        _ => {}
     };
 
-    info!(
-        &ctx,
-        "received a packet from {:i}:{}. Action: {}", source_addr, port, action
-    );
+    let action = if should_check {
+        let action = match unsafe {
+            BLOCKLIST
+                .get(&source_addr)
+                .ok_or(())
+                .copied()
+                .and_then(IpBlockRule::try_from)
+        } {
+            Ok(IpBlockRule::AnyPort) => xdp_action::XDP_DROP,
+            Ok(IpBlockRule::Port(blocked_port)) => {
+                if blocked_port == destination_port {
+                    xdp_action::XDP_DROP
+                } else {
+                    xdp_action::XDP_PASS
+                }
+            }
+            Err(_) => xdp_action::XDP_PASS,
+        };
+
+        trace!(
+            &ctx,
+            "received a packet from {:i} on port {}. Action: {}",
+            source_addr,
+            destination_port,
+            action
+        );
+
+        action
+    } else {
+        xdp_action::XDP_PASS
+    };
 
     Ok(action)
 }
