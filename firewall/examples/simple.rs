@@ -3,8 +3,13 @@ use {
     aya_log::EbpfLogger,
     clap::Parser,
     firewall::{setup_default, Firewall},
+    firewall_common::IpBlockRule,
     log::info,
-    std::{io::Write, net::Ipv4Addr, str::FromStr},
+    std::{
+        io::Write,
+        net::{IpAddr, Ipv4Addr, SocketAddr},
+        str::FromStr,
+    },
 };
 
 #[derive(Parser)]
@@ -24,7 +29,7 @@ pub async fn main() {
     let mut firewall = Firewall::try_new(&mut bpf).expect("failed to create firewall");
     let mut input = String::new();
     loop {
-        print!("Enter an IP to block (type 'q' to quit):");
+        print!("Enter an IP:PORT to block (type 'q' to quit):");
         std::io::stdout().flush().unwrap();
         input.clear();
         std::io::stdin().read_line(&mut input).unwrap();
@@ -33,14 +38,18 @@ pub async fn main() {
             break;
         }
 
-        let Ok(ip) = Ipv4Addr::from_str(trimmed) else {
+        let Ok(socket) = SocketAddr::from_str(trimmed) else {
             eprintln!("invalid ip: {trimmed}");
             break;
         };
 
-        info!("blocking {ip}");
+        let IpAddr::V4(ipv4) = socket.ip() else {
+            continue;
+        };
+
+        info!("blocking {socket}");
         firewall
-            .block_ip(ip, IpBlockRule::AnyPort)
-            .expect("failed to block ip");
+            .block_ip(ipv4, IpBlockRule::Port(socket.port()))
+            .expect("failed to block socket");
     }
 }
