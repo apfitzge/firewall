@@ -26,7 +26,7 @@ pub async fn main() {
     let mut bpf =
         setup_default(&opt.iface, XdpFlags::default()).expect("failed to setup xdp program");
     EbpfLogger::init(&mut bpf).expect("failed to initialize bpf logger");
-    let mut firewall = Firewall::try_new(&mut bpf).expect("failed to create firewall");
+    let mut firewall = Firewall::try_new(bpf).expect("failed to create firewall");
     let mut input = String::new();
     loop {
         print!("Enter an IP:PORT to block (type 'q' to quit):");
